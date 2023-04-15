@@ -37,7 +37,7 @@ export class TornadoMina extends SmartContract {
 
     this.commitmentsRoot.set(rootAfter);
 
-    const payerUpdate = AccountUpdate.create(this.sender);
+    const payerUpdate = AccountUpdate.createSigned(this.sender);
     payerUpdate.send({ to: this.address, amount: UInt64.from(1000000) });
   }
 

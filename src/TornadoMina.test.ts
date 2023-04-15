@@ -1,7 +1,9 @@
 import {
   AccountUpdate,
+  Field,
   MerkleMap,
   Mina,
+  Poseidon,
   PrivateKey,
   PublicKey,
   isReady,
@@ -44,8 +46,19 @@ describe('TornadoMina.js', () => {
     await initTxn.prove();
     await initTxn.sign([senderKey]).send();
   });
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  it('can deposit', async () => {});
+  it('can deposit', async () => {
+    const beforeBalance = Mina.getBalance(sender).toBigInt();
+    const nonce = Field(Mina.getAccount(sender).nonce.toBigint());
+    const nullifier = Field.random();
+    const commitment = Poseidon.hash([nullifier, nonce]);
+    const commitmentWitness = commitmentMap.getWitness(commitment);
+    const depositTxn = await Mina.transaction(sender, () => {
+      zkApp.deposit(commitment, commitmentWitness);
+    });
+    await depositTxn.prove();
+    await depositTxn.sign([senderKey]).send();
+    expect(Mina.getBalance(sender).toBigInt()).toBe(beforeBalance - 1000000n);
+  });
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   it('should fail on depositing already deposit commiment', async () => {});
   // eslint-disable-next-line @typescript-eslint/no-empty-function
