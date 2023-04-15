@@ -63,7 +63,7 @@ export class TornadoMina extends SmartContract {
       commitmentWitness.computeRootAndKey(Field(1));
     // assert commitment is included in MerkleTree
     const commitmentRoot = this.commitmentsRoot.get();
-    this.commitmentsRoot.assertEquals(initialRoot);
+    this.commitmentsRoot.assertEquals(commitmentRoot);
     commitmentRootBefore.assertEquals(commitmentRoot);
     commitment.assertEquals(expectedCommitment);
 

@@ -69,7 +69,7 @@ describe('TornadoMina.js', () => {
     expect(Mina.getBalance(zkApp.address).toBigInt()).toBe(1000000n);
   });
   it('should fail on depositing already deposit commitment', async () => {
-    const { commitment, commitmentWitness } = await deposit();
+    const { commitment } = await deposit();
     expect(zkApp.commitmentsRoot.get()).toStrictEqual(commitmentMap.getRoot());
     const commitmentWitness2 = commitmentMap.getWitness(commitment);
     const depositTxn2 = await Mina.transaction(sender, () => {
@@ -81,7 +81,7 @@ describe('TornadoMina.js', () => {
       .then((_) => true);
     expect(depositTxn2).toBeFalsy;
   });
-  it.only('can withdraw', async () => {
+  it('can withdraw', async () => {
     const beforeBalance = Mina.getBalance(sender).toBigInt();
     const { nonce, nullifier, commitment } = await deposit();
     expect(Mina.getBalance(zkApp.address).toBigInt()).toBe(1000000n);
@@ -93,7 +93,7 @@ describe('TornadoMina.js', () => {
     });
     await withdrawTxn.prove();
     await withdrawTxn.sign([senderKey]).send();
-    nullifierHashesMap.set(nullifierHash, Field(0));
+    nullifierHashesMap.set(nullifierHash, Field(1));
     expect(Mina.getBalance(sender).toBigInt()).toBe(beforeBalance);
     expect(zkApp.nullifierHashesRoot.get()).toStrictEqual(
       nullifierHashesMap.getRoot()
