@@ -22,7 +22,11 @@ This product offers constant MINA native currency mixing and cli based demo usin
 
 ### Deposit
 
+<img width="770" alt="deposit" src="img/deposit.jpg">
+
 ### Withdraw
+
+<img width="770" alt="withdraw" src="img/withdraw.jpg">
 
 ## Problems
 
