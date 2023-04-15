@@ -31,13 +31,14 @@ const salt = Field.random();
 const deployTxn = await Mina.transaction(deployerAccount, () => {
   AccountUpdate.fundNewAccount(deployerAccount);
   zkAppInstance.deploy();
+});
+await deployTxn.sign([deployerKey, zkAppPrivateKey]).send();
+
+const tx = await Mina.transaction(deployerAccount, () => {
   zkAppInstance.initState(salt, Field(750));
 });
-console.log('come before deployment');
-const tx = deployTxn.sign([deployerKey, zkAppPrivateKey]);
-console.log('come after deployment');
-await tx.send();
-console.log('come after send');
+await tx.prove();
+await tx.sign([deployerKey]).send();
 
 const num0 = zkAppInstance.x.get();
 console.log('state after init:', num0.toString());
