@@ -1,3 +1,3 @@
-import { IncrementSecret } from './IncrementSecret.js';
+import { TornadoMina } from './TornadoMina.js';
 
-export { IncrementSecret };
+export { TornadoMina };
