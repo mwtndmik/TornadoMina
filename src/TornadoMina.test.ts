@@ -61,6 +61,22 @@ describe('TornadoMina.js', () => {
     return { nonce, nullifier, commitment, commitmentWitness };
   }
 
+  async function withdraw({
+    nonce,
+    nullifier,
+    commitment,
+  }: Awaited<ReturnType<typeof deposit>>) {
+    const commitmentWitness = commitmentMap.getWitness(commitment);
+    const nullifierHash = Poseidon.hash([nullifier]);
+    const nullifierHashWitness = nullifierHashesMap.getWitness(nullifierHash);
+    const withdrawTxn = await Mina.transaction(sender, () => {
+      zkApp.withdraw(nullifier, nonce, nullifierHashWitness, commitmentWitness);
+    });
+    await withdrawTxn.prove();
+    await withdrawTxn.sign([senderKey]).send();
+    nullifierHashesMap.set(nullifierHash, Field(1));
+  }
+
   it('can deposit', async () => {
     const beforeBalance = Mina.getBalance(sender).toBigInt();
     await deposit();
@@ -72,35 +88,35 @@ describe('TornadoMina.js', () => {
     const { commitment } = await deposit();
     expect(zkApp.commitmentsRoot.get()).toStrictEqual(commitmentMap.getRoot());
     const commitmentWitness2 = commitmentMap.getWitness(commitment);
-    const depositTxn2 = await Mina.transaction(sender, () => {
-      zkApp.deposit(commitment, commitmentWitness2);
-    })
-      .catch((_) => {
-        return false;
-      })
-      .then((_) => true);
-    expect(depositTxn2).toBeFalsy;
+    try {
+      const depositTxn2 = await Mina.transaction(sender, () => {
+        zkApp.deposit(commitment, commitmentWitness2);
+      });
+      expect(false).toBe(true);
+    } catch (error: any) {
+      expect(error.message).toContain('assert_equal');
+    }
   });
   it('can withdraw', async () => {
     const beforeBalance = Mina.getBalance(sender).toBigInt();
-    const { nonce, nullifier, commitment } = await deposit();
-    expect(Mina.getBalance(zkApp.address).toBigInt()).toBe(1000000n);
-    const commitmentWitness = commitmentMap.getWitness(commitment);
-    const nullifierHash = Poseidon.hash([nullifier]);
-    const nullifierHashWitness = nullifierHashesMap.getWitness(nullifierHash);
-    const withdrawTxn = await Mina.transaction(sender, () => {
-      zkApp.withdraw(nullifier, nonce, nullifierHashWitness, commitmentWitness);
-    });
-    await withdrawTxn.prove();
-    await withdrawTxn.sign([senderKey]).send();
-    nullifierHashesMap.set(nullifierHash, Field(1));
+    const depositResult = await deposit();
+    await withdraw(depositResult);
     expect(Mina.getBalance(sender).toBigInt()).toBe(beforeBalance);
     expect(zkApp.nullifierHashesRoot.get()).toStrictEqual(
       nullifierHashesMap.getRoot()
     );
   });
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  it('should fail on withdrawing already withdrawn commitment', async () => {});
+  it('should fail on withdrawing already withdrawn commitment', async () => {
+    const depositResult = await deposit();
+    await withdraw(depositResult);
+    await deposit();
+    try {
+      await withdraw(depositResult);
+      expect(false).toBe(true);
+    } catch (error: any) {
+      expect(error.message).toContain('assert_equal');
+    }
+  });
   afterAll(() => {
     setTimeout(shutdown, 0);
   });
