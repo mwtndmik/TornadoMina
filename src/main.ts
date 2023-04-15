@@ -1,57 +1,129 @@
 import {
   AccountUpdate,
   Field,
+  MerkleMap,
   Mina,
+  Poseidon,
   PrivateKey,
+  PublicKey,
   isReady,
   shutdown,
 } from 'snarkyjs';
-import { IncrementSecret } from './IncrementSecret.js';
-
+import { TornadoMina } from './TornadoMina.js';
 await isReady;
 
 console.log('SnarkyJS loaded');
 
-const useProof = false;
+interface User {
+  publicKey: PublicKey;
+  privateKey: PrivateKey;
+  nonce: Field;
+  nullifier: Field;
+  commitment: Field;
+}
 
-const Local = Mina.LocalBlockchain({ proofsEnabled: useProof });
+let zkApp: TornadoMina,
+  zkAppPrivateKey: PrivateKey,
+  zkAppAddress: PublicKey,
+  sender: PublicKey,
+  senderKey: PrivateKey,
+  commitmentMap: MerkleMap,
+  nullifierHashesMap: MerkleMap;
+
+await isReady;
+commitmentMap = new MerkleMap();
+nullifierHashesMap = new MerkleMap();
+const Local = Mina.LocalBlockchain({ proofsEnabled: false });
 Mina.setActiveInstance(Local);
-const { privateKey: deployerKey, publicKey: deployerAccount } =
-  Local.testAccounts[0];
-const { privateKey: senderKey, publicKey: senderAccount } =
-  Local.testAccounts[1];
+sender = Local.testAccounts[0].publicKey;
+senderKey = Local.testAccounts[0].privateKey;
 
-const zkAppPrivateKey = PrivateKey.random();
-const zkAppAddress = zkAppPrivateKey.toPublicKey();
+function createUser(index: number): User {
+  return {
+    publicKey: Local.testAccounts[index].publicKey,
+    privateKey: Local.testAccounts[index].privateKey,
+    nonce: Field(0),
+    nullifier: Field(0),
+    commitment: Field(0),
+  };
+}
 
-const zkAppInstance = new IncrementSecret(zkAppAddress);
+let alice = createUser(1);
+let bob = createUser(2);
 
-const salt = Field.random();
+// Local.testAccounts[0];
+zkAppPrivateKey = PrivateKey.random();
+zkAppAddress = zkAppPrivateKey.toPublicKey();
+zkApp = new TornadoMina(zkAppAddress);
 
-const deployTxn = await Mina.transaction(deployerAccount, () => {
-  AccountUpdate.fundNewAccount(deployerAccount);
-  zkAppInstance.deploy();
+const deployTxn = await Mina.transaction(sender, () => {
+  AccountUpdate.fundNewAccount(sender);
+  zkApp.deploy();
 });
-await deployTxn.sign([deployerKey, zkAppPrivateKey]).send();
+await deployTxn.prove();
+await deployTxn.sign([senderKey, zkAppPrivateKey]).send();
 
-const tx = await Mina.transaction(deployerAccount, () => {
-  zkAppInstance.initState(salt, Field(750));
+const initTxn = await Mina.transaction(sender, () => {
+  zkApp.initState(commitmentMap.getRoot(), nullifierHashesMap.getRoot());
 });
-await tx.prove();
-await tx.sign([deployerKey]).send();
+await initTxn.prove();
+await initTxn.sign([senderKey]).send();
 
-const num0 = zkAppInstance.x.get();
-console.log('state after init:', num0.toString());
+async function deposit(user: User) {
+  const nonce = Field(Mina.getAccount(user.publicKey).nonce.toBigint());
+  const nullifier = Field.random();
+  const commitment = Poseidon.hash([nullifier, nonce]);
+  const commitmentWitness = commitmentMap.getWitness(commitment);
+  const depositTxn = await Mina.transaction(user.publicKey, () => {
+    zkApp.deposit(commitment, commitmentWitness);
+  });
+  await depositTxn.prove();
+  await depositTxn.sign([user.privateKey]).send();
+  commitmentMap.set(commitment, Field(1));
+  user.nonce = nonce;
+  user.nullifier = nullifier;
+  user.commitment = commitment;
+  return user;
+}
 
-const txn1 = await Mina.transaction(senderAccount, () => {
-  zkAppInstance.incrementSecret(salt, Field(750));
-});
-await txn1.prove();
-await txn1.sign([senderKey]).send();
+async function withdraw(user: User) {
+  const commitmentWitness = commitmentMap.getWitness(user.commitment);
+  const nullifierHash = Poseidon.hash([user.nullifier]);
+  const nullifierHashWitness = nullifierHashesMap.getWitness(nullifierHash);
+  const withdrawTxn = await Mina.transaction(user.publicKey, () => {
+    zkApp.withdraw(
+      user.nullifier,
+      user.nonce,
+      nullifierHashWitness,
+      commitmentWitness
+    );
+  });
+  await withdrawTxn.prove();
+  await withdrawTxn.sign([user.privateKey]).send();
+  nullifierHashesMap.set(nullifierHash, Field(1));
+}
 
-const num1 = zkAppInstance.x.get();
-console.log('state after txn1:', num1.toString());
+function printBalances() {
+  const contractBalance = Mina.getBalance(zkAppAddress).toBigInt();
+  const aliceBalance = Mina.getBalance(alice.publicKey).toBigInt();
+  const bobBalance = Mina.getBalance(bob.publicKey).toBigInt();
+  console.log(
+    `Balance sheet:  zkApp: ${contractBalance}, alice: ${aliceBalance}, bob: ${bobBalance}\n`
+  );
+}
+console.log('initial state');
+printBalances();
 
-console.log('Shutting down');
+alice = await deposit(alice);
+console.log('alice depositted');
+printBalances();
 
-await shutdown();
+bob = await deposit(bob);
+console.log('bob depositted');
+printBalances();
+
+await withdraw(alice);
+console.log('alice withdrawn');
+printBalances();
+
+setTimeout(shutdown, 0);
