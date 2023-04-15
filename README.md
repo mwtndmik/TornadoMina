@@ -60,6 +60,13 @@ npm run testw # watch mode
 npm run coverage
 ```
 
+#### Current Coverage
+
+| File           | % Stmts | % Branch | % Funcs | % Lines |
+|:---------------|--------:|---------:|--------:|--------:|
+| All files      |     100 |      100 |     100 |     100 |
+| TornadoMina.ts |     100 |      100 |     100 |     100 |
+
 ## License
 
 [Apache-2.0](LICENSE)
