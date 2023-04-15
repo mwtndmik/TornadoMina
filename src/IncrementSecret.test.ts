@@ -15,14 +15,16 @@ describe('IncrementSecret.js', () => {
     zkAppPrivateKey: PrivateKey,
     zkAppAddress: PublicKey,
     sender: PublicKey,
-    senderKey: PrivateKey;
+    senderKey: PrivateKey,
+    Local: ReturnType<typeof Mina.LocalBlockchain>;
 
   beforeEach(async () => {
     await isReady;
-    let Local = Mina.LocalBlockchain({ proofsEnabled: false });
+    Local = Mina.LocalBlockchain({ proofsEnabled: false });
     Mina.setActiveInstance(Local);
     sender = Local.testAccounts[0].publicKey;
     senderKey = Local.testAccounts[0].privateKey;
+    Local.testAccounts[0];
     zkAppPrivateKey = PrivateKey.random();
     zkAppAddress = zkAppPrivateKey.toPublicKey();
     zkApp = new IncrementSecret(zkAppAddress);
@@ -46,6 +48,9 @@ describe('IncrementSecret.js', () => {
     await tx.sign([senderKey]).send();
     const retrievedCommitment = zkApp.x.get();
     expect(retrievedCommitment).toStrictEqual(Poseidon.hash([salt, secret]));
+  });
+  it('can retrieve nonce', async () => {
+    expect(Local.getAccount(sender).nonce.toBigint()).toBe(0n);
   });
 });
 
