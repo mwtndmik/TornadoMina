@@ -15,12 +15,11 @@ describe('IncrementSecret.js', () => {
     zkAppPrivateKey: PrivateKey,
     zkAppAddress: PublicKey,
     sender: PublicKey,
-    senderKey: PrivateKey,
-    Local: ReturnType<typeof Mina.LocalBlockchain>;
+    senderKey: PrivateKey;
 
   beforeEach(async () => {
     await isReady;
-    Local = Mina.LocalBlockchain({ proofsEnabled: false });
+    const Local = Mina.LocalBlockchain({ proofsEnabled: false });
     Mina.setActiveInstance(Local);
     sender = Local.testAccounts[0].publicKey;
     senderKey = Local.testAccounts[0].privateKey;
@@ -50,7 +49,7 @@ describe('IncrementSecret.js', () => {
     expect(retrievedCommitment).toStrictEqual(Poseidon.hash([salt, secret]));
   });
   it('can retrieve nonce', async () => {
-    expect(Local.getAccount(sender).nonce.toBigint()).toBe(0n);
+    expect(Mina.getAccount(sender).nonce.toBigint()).toBe(0n);
   });
 });
 
